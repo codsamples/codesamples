@@ -1,0 +1,71 @@
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.lakeformation.AWSLakeFormation;
+import com.amazonaws.services.lakeformation.AWSLakeFormationClientBuilder;
+import com.amazonaws.services.lakeformation.model.AddLFTagsToResourceRequest;
+import com.amazonaws.services.lakeformation.model.AddLFTagsToResourceResult;
+import com.amazonaws.services.lakeformation.model.DataLakeSettings;
+import com.amazonaws.services.lakeformation.model.DataLakeSettingsServiceEndpoint;
+import com.amazonaws.services.lakeformation.model.DataLakeSettingsUpdate;
+import com.amazonaws.services.lakeformation.model.GetDataLakeSettingsRequest;
+import com.amazonaws.services.lakeformation.model.GetDataLakeSettingsResult;
+import com.amazonaws.services.lakeformation.model.PrincipalPermissions;
+import com.amazonaws.services.lakeformation.model.UpdateDataLakeSettingsRequest;
+import com.amazonaws.services.lakeformation.model.UpdateDataLakeSettingsResult;
+import com.amazonaws.services.lakeformation.model.UpdateResourceRequest;
+import com.amazonaws.services.lakeformation.model.UpdateResourceResult;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class AddUserToGroupExample {
+
+    public static void main(String[] args) {
+        // Set your AWS access key ID and secret access key
+        String accessKey = "your-access-key";
+        String secretKey = "your-secret-key";
+
+        // Set the AWS region and create the Lake Formation client
+        Regions region = Regions.US_WEST_2;
+        AWSLakeFormation client = AWSLakeFormationClientBuilder.standard()
+                .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)))
+                .withRegion(region)
+                .build();
+
+        // Set the name of the user and group to add them to
+        String userName = "newuser@example.com";
+        String groupName = "mygroup";
+
+        // Get the current permissions for the group
+        List<PrincipalPermissions> currentPermissions = new ArrayList<>();
+        currentPermissions.add(new PrincipalPermissions()
+                .withPrincipalDataLakePrincipalIdentifier(groupName)
+                .withPermissions("SELECT", "ALTER"));
+
+        // Create a new list of permissions that includes the new user
+        List<PrincipalPermissions> newPermissions = new ArrayList<>(currentPermissions);
+        newPermissions.add(new PrincipalPermissions()
+                .withPrincipalDataLakePrincipalIdentifier(userName)
+                .withPermissions("SELECT"));
+
+        // Update the permissions for the group
+        UpdateResourceRequest updateRequest = new UpdateResourceRequest()
+                .withResourceArn(String.format("arn:aws:lakeformation:%s:012345678901:resource:database/mydatabase/table/mytable", region.getName()))
+                .withRoleArn(String.format("arn:aws:iam::012345678901:role/myrole", region.getName()))
+                .withResourceType("TABLE")
+                .withAcl(newPermissions);
+        UpdateResourceResult updateResult = client.updateResource(updateRequest);
+        System.out.println("Updated permissions for group: " + updateResult);
+
+        // Add the new user to the group
+        UpdateDataLakeSettingsRequest settingsRequest = new UpdateDataLakeSettingsRequest()
+                .withCatalogId("012345678901")
+                .withDataLakeSettings(new DataLakeSettingsUpdate()
+                        .withCreateDatabaseDefaultPermissions(newPermissions)
+                        .withCreateTableDefaultPermissions(newPermissions)
+                        .withTrustedResourceOwners(currentPermissions));
+        UpdateDataLakeSettingsResult settingsResult = client.updateDataLakeSettings(settingsRequest);
+        System.out.println("Updated data lake settings: " + settingsResult);
+    }
+}
